@@ -19,18 +19,19 @@ class HttpTest{
         @Override
         public Thread newThread(Runnable runnable){
             Thread thread = new Thread(runnable);
-            System.out.println("New Thread created"+(thread.isDaemon()? ":daemon": ""+"\nThread Group: "+thread.getThreadGroup()));
+            System.out.println("New Thread created"+(thread.isDaemon()? ":daemon": ""+" Thread Group: "+thread.getThreadGroup()));
             return thread;
         }
     });
 
     public static void main(String[] args) throws IOException, InterruptedException{
 
-        connectAkamaiHttp1Client();
+        // connectAkamaiHttp1Client();
+        // connectAkamaiHttp2Client();
 
     }
 
-    private static void connectAkamaiHttp1Client(){
+    private static void connectAkamaiHttp1Client() throws IOException, InterruptedException{
 
         System.out.println("Running HTTP/1.1 example...");
 
@@ -57,7 +58,7 @@ class HttpTest{
 
             responseBody.lines()
                         .filter(line -> line.trim().startsWith("<img height"))
-                        .map(line -> line.substring(line.indexOf("src=''")+5, line.indexOf("/>")))
+                        .map(line -> line.substring(line.indexOf("src='")+5, line.indexOf("/>")))
                         .forEach(image -> {
                             Future<?> imageFuture = executor.submit(()->{
                                 HttpRequest imageRequest = HttpRequest.newBuilder()
@@ -65,9 +66,9 @@ class HttpTest{
                                                                       .build();
                                 try {
                                     HttpResponse<String> imageResponse = httpClient.send(imageRequest, HttpResponse.BodyHandlers.ofString());
-                                    System.out.println("Image Loaded: "+image+"\nStatus Code: "+imageResponse.statusCode());
+                                    System.out.println("Image Loaded: "+image+" Status Code: "+imageResponse.statusCode());
                                 } catch (IOException | InterruptedException e) {
-                                    e.printStackTrace();
+                                    System.out.println("Error during request for image - "+image);
                                 }
                             });
                             future.add(imageFuture);
@@ -77,34 +78,74 @@ class HttpTest{
                 try {
                     f.get();
                 } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
+                    System.out.println("Error when waiting for future image to load.");
                 }
             });
 
             long finalT = System.currentTimeMillis();
-            System.out.println("Time of execution: "+(finalT-startT));
-
-        } catch(IOException | InterruptedException e){
-            e.printStackTrace();
+            System.out.println("Time of execution: "+(finalT-startT)+"ms");
         }finally{
             executor.shutdown();
         }
 
     }
 
-    private static void printConnectJavaOracle() throws IOException, InterruptedException{
+    private static void connectAkamaiHttp2Client() throws IOException, InterruptedException{
 
-        HttpRequest request = HttpRequest.newBuilder()
-                                         .GET()
-                                         .uri(URI.create("https://docs.oracle.com/javase/10/language/"))
-                                         .build();
+        System.out.println("Running HTTP/2 example...");
 
-        HttpClient httpClient = HttpClient.newHttpClient();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        try{
 
-        System.out.println("Status Code: "+response.body());
-        System.out.println("Header Code: "+response.headers());
-        System.out.println("Body Code: "+response.body());
+            HttpClient httpClient = HttpClient.newBuilder()
+                                              .version(HttpClient.Version.HTTP_2)
+                                              .proxy(ProxySelector.getDefault())
+                                              .build();
+
+            long startT = System.currentTimeMillis();
+            HttpRequest request = HttpRequest.newBuilder()
+                                             .uri(URI.create("https://http2.akamai.com/demo/h2_demo_frame.html"))
+                                             .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            System.out.println("Status code: "+ response.statusCode());
+            System.out.println("Response Headers: "+response.headers());
+            String responseBody = response.body();
+            System.out.println("Body: "+responseBody);
+
+            List<Future<?>> future = new ArrayList<>(); 
+
+            responseBody.lines()
+                        .filter(line -> line.trim().startsWith("<img height"))
+                        .map(line -> line.substring(line.indexOf("src='")+5, line.indexOf("/>")))
+                        .forEach(image -> {
+                            Future<?> imageFuture = executor.submit(()->{
+                                HttpRequest imageRequest = HttpRequest.newBuilder()
+                                                                      .uri(URI.create("https://http2.akamai.com"+image))
+                                                                      .build();
+                                try {
+                                    HttpResponse<String> imageResponse = httpClient.send(imageRequest, HttpResponse.BodyHandlers.ofString());
+                                    System.out.println("Image Loaded: "+image+" Status Code: "+imageResponse.statusCode());
+                                } catch (IOException | InterruptedException e) {
+                                    System.out.println("Error during request for image - "+image);
+                                }
+                            });
+                            future.add(imageFuture);
+                            System.out.println("Submitted images: "+image);
+                        });
+            future.forEach(f -> {
+                try {
+                    f.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    System.out.println("Error when waiting for future image to load.");
+                }
+            });
+
+            long finalT = System.currentTimeMillis();
+            System.out.println("Time of execution: "+(finalT-startT)+"ms");
+        }finally{
+            executor.shutdown();
+        }
 
     }
 

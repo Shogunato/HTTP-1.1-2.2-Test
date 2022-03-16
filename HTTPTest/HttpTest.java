@@ -83,7 +83,7 @@ class HttpTest{
             });
 
             long finalT = System.currentTimeMillis();
-            System.out.println("Time of execution: "+(finalT-startT)+"ms");
+            System.out.printf("Time of execution: %d ms", finalT-startT);
         }finally{
             executor.shutdown();
         }
@@ -142,7 +142,7 @@ class HttpTest{
             });
 
             long finalT = System.currentTimeMillis();
-            System.out.println("Time of execution: "+(finalT-startT)+"ms");
+            System.out.printf("Time of execution: %d ms", finalT-startT);
         }finally{
             executor.shutdown();
         }
